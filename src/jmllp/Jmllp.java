@@ -26,6 +26,7 @@ import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Properties;
+import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -237,7 +238,7 @@ class ChannelX extends Thread{
                if (log) System.out.println("Write "+bufSizeIn+" bytes");
             }
             msgAckResponse=extract_msgAckResponse(BufInValue);
-
+            System.out.println(msgAckResponse);
 
             pwDisk.print(BufInValue);
             pwDisk.close();
@@ -302,10 +303,19 @@ class ChannelX extends Thread{
         return out;
     }
 
+
+    /**
+     * Extraire le MSH-10.1 message control Id
+     * @param BufInValue
+     * @return
+     */
     private String extract_msgAckResponse(String BufInValue) {
-
-
-        return "Z2015042012532532124";
+        Scanner sc=new Scanner(BufInValue);
+        sc.useDelimiter("\\|");
+        sc.next();sc.next();sc.next();
+        sc.next();sc.next();sc.next();
+        sc.next();sc.next();sc.next();
+        return sc.next();
     }
 
 
