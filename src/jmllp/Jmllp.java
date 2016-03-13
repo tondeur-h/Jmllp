@@ -194,7 +194,7 @@ class ChannelX extends Thread{
                 }
 
                 //renvoyer un ACK vers le port de sortie.
-                if (ack) {boutstr.write(mllp_encapsulate(bufferOutput,bufferSizeOut),0,bufferSizeOut+3);}
+                if (ack) {boutstr.write(mllp_encapsulate(bufferOutput,bufferSizeOut),0,bufferSizeOut);}
 
                 binstr.close();
                 boutstr.close();
@@ -218,8 +218,9 @@ class ChannelX extends Thread{
     private byte[] traiter_buffer_in(byte[] bufferIn,int bufSizeIn) {
         PrintWriter pwDisk=null;
         try {
-            //mllp de_Encapsulate
-            //ByteBuffer currBuf=mllp_unencapsulate(bufferIn);
+            //msgAckResponse
+            String msgAckResponse;
+
             //write on disk
             String fileName=pathName+"/"+socketName+autoCounter+"."+extensionName;
             if (log) System.out.println("Write fileName : "+fileName);
@@ -235,15 +236,21 @@ class ChannelX extends Thread{
                 BufInValue=new String(bufferIn,0,bufSizeIn);
                if (log) System.out.println("Write "+bufSizeIn+" bytes");
             }
+            msgAckResponse=extract_msgAckResponse(BufInValue);
+
+
             pwDisk.print(BufInValue);
             pwDisk.close();
             autoCounter++;
             //return ACK
             bufferOutput=new byte[1024*4096];
             //TODO : construire ACK
-            String strAck="MSH|^~\\&|JMLLP|CHV|"+socketName+"|CHV|20061019172719||ACK^O01|"+socketName+autoCounter+"|P|2.3\nMSA|AA|"+socketName+autoCounter;
-
+            String strAck="MSH|^~\\&|JMLLP|CHV|"+socketName+"|CHV|20160313152819||ACK^O01|"+socketName+autoCounter+"|P|2.3\rMSA|AA|"+msgAckResponse;
             bufferSizeOut=strAck.length();
+
+            if (log) System.out.println(strAck);
+            if (log) System.out.println("ack response lenght "+bufferSizeOut+" bytes");
+
             bufferOutput=mllp_encapsulate(strAck.getBytes(),bufferSizeOut);
 
         } catch (FileNotFoundException ex) {
@@ -270,11 +277,11 @@ class ChannelX extends Thread{
         int idx;
         out[0]=0x0b;
         for (idx=1;idx<sizebufLocIn;idx++){
-            out[idx]=bufferLocIn[idx-1];
+            out[idx]=bufferLocIn[idx];
         }
-        out[idx+1]=0x1c;
-        out[idx+2]=0x0d;
-        bufferSizeIn=sizebufLocIn+3;
+        out[idx]=0x1c;
+        out[idx+1]=0x0d;
+        bufferSizeOut=sizebufLocIn+3;
         return out;
     }
 
@@ -293,6 +300,12 @@ class ChannelX extends Thread{
         }
         bufferSizeIn=sizebufLocIn-3;
         return out;
+    }
+
+    private String extract_msgAckResponse(String BufInValue) {
+
+
+        return "Z2015042012532532124";
     }
 
 
