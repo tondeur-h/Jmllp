@@ -31,10 +31,10 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 
-/**
+/********************
  *
  * @author tondeur-h
- */
+ ********************/
 public class Jmllp {
 
     ServerSocket servSock;
@@ -50,8 +50,6 @@ public class Jmllp {
     boolean ack=false;
     boolean mllp=false;
     boolean log=false;
-   // String ackOUT="";
-
 
 
     /***************
@@ -121,9 +119,9 @@ public class Jmllp {
     }
 
 
-/**
+/*****************************************
  * Affichage des information du connecteur
- */
+ ******************************************/
     private void show_running() {
         System.out.println("Jmllp Running");
         System.out.println("On port : "+port);
@@ -139,7 +137,10 @@ public class Jmllp {
 
 
 
-
+/********************
+ *
+ * @author tondeur-h
+ ********************/
 class ChannelX extends Thread{
 
     DataInputStream binstr;
@@ -156,7 +157,17 @@ class ChannelX extends Thread{
     boolean log;
     int bufferSizeIn,bufferSizeOut;
 
-
+/************************
+ * Constructeur
+ * @param sockIn
+ * @param autoCount
+ * @param pathName
+ * @param sockName
+ * @param extensionName
+ * @param ack
+ * @param mllp
+ * @param log
+ *************************/
     public ChannelX(Socket sockIn,long autoCount,String pathName,String sockName, String extensionName,boolean ack,boolean mllp, boolean log) {
         //dimensionner les buffers
             bufferInput=new byte[1024*4096];
@@ -174,7 +185,9 @@ class ChannelX extends Thread{
 
 
 
-
+/*************
+ * THread run
+ *************/
     @Override
     public void run(){
         try{
@@ -304,11 +317,11 @@ class ChannelX extends Thread{
     }
 
 
-    /**
+    /******************************************
      * Extraire le MSH-10.1 message control Id
      * @param BufInValue
      * @return
-     */
+     ******************************************/
     private String extract_msgAckResponse(String BufInValue) {
         Scanner sc=new Scanner(BufInValue);
         sc.useDelimiter("\\|");
@@ -317,7 +330,5 @@ class ChannelX extends Thread{
         sc.next();sc.next();sc.next();
         return sc.next();
     }
-
-
 
 }
