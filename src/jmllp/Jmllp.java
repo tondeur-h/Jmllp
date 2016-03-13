@@ -32,7 +32,7 @@ import java.util.logging.Logger;
 
 
 /********************
- *
+ * Classe principale Jmllp
  * @author tondeur-h
  ********************/
 public class Jmllp {
@@ -42,7 +42,7 @@ public class Jmllp {
 
 
     int port=1234;
-    String propFileName="Jmllp.properties";
+    String propFileName="jmllp.properties"; //nom du fichier parametre du connecteur
     String destinationPath;
     String socketName="mllp1";
     String extensionName="txt";
@@ -52,22 +52,30 @@ public class Jmllp {
     boolean log=false;
 
 
-    /***************
+    /*********************************
      * Constructeur
-     ***************/
+     * Boucle sur les connexions socket
+     *********************************/
     public Jmllp() {
         try {
 
             //lire le fichier paramétrage
+            //et appliquer les paramétres du fichier
+            //jmllp.properties
             lire_properties();
 
+            //instance du serveur socket
             servSock=new ServerSocket(port);
+            //afficher les infos de demarrage de la socket
             show_running();
 
+            //boucle de connexion des sockets
             while (true){
             //attendre une connexion socket
                 sockIn=servSock.accept();
+                //augmenter le numéro du fichier
                 autoCounter++;
+                //instance de prise en charge d'une socket
                 ChannelX chx=new ChannelX(sockIn,autoCounter,destinationPath,socketName,extensionName,ack,mllp,log);
             }
 
@@ -77,30 +85,37 @@ public class Jmllp {
     }
 
 
-
-
     /*****************************************
      * @param args the command line arguments
+     * Appel le constructeur de l'application
+     * pour démarrer la socket Serveur
      *****************************************/
     public static void main(String[] args) {
         new Jmllp();
     }
 
 
+
     /********************************
      * lire le fichier des propriétés
      ********************************/
     private void lire_properties() {
+        //récuperer le dossier de travail de l'application
       String pathApplication=System.getProperty("user.dir");
+      //creer l'objet properties permettant de relire le fichier properties
       Properties p=new Properties();
       FileInputStream inProp;
 
         try {
             //ouvrir le fichier
+            //le fichier doit se nommer jmllp.properties et se trouver
+            //obligatoirement dans le dossier de l'application
             inProp=new FileInputStream(pathApplication+"/"+propFileName);
-            //lire les variables
+            //lire les variables du fichier
             p.load(inProp);
+            //numero port d'écoute 1234 par défaut
             port=Integer.parseInt(p.getProperty("port", "1234"), 10);
+            //nom de la socket, donne ce nom aux fichiers en sortie
             socketName=p.getProperty("socketName", "mllp1");
             destinationPath=p.getProperty("destinationPath", pathApplication);
             extensionName=p.getProperty("extensionName", "txt");
@@ -120,17 +135,33 @@ public class Jmllp {
 
 
 /*****************************************
- * Affichage des information du connecteur
+ * Affichage des informations du connecteur
  ******************************************/
     private void show_running() {
-        System.out.println("Jmllp Running");
-        System.out.println("On port : "+port);
+        System.out.println("Jmllp version 1.0");
+        System.out.println("Copyright (C) 2016 Tondeur Hervé");
+        System.out.println("-----------------------------------------------------------------------");
+         System.out.println(
+         "This program is free software: you can redistribute it and/or modify\n"+
+         "it under the terms of the GNU General Public License as published by\n"+
+         " the Free Software Foundation, either version 3 of the License, or\n"+
+         "(at your option) any later version.\n"+
+         "This program is distributed in the hope that it will be useful,\n"+
+         "but WITHOUT ANY WARRANTY; without even the implied warranty of\n"+
+         "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n"+
+         "GNU General Public License for more details.\n"+
+         "You should have received a copy of the GNU General Public License\n"+
+         "along with this program.  If not, see <http://www.gnu.org/licenses/>.\n"+
+         "-----------------------------------------------------------------------");
+        System.out.println("Jmllp Running on port : "+port);
         System.out.println("Destination Path : "+destinationPath);
-        System.out.println("ack ? : "+ack);
-        System.out.println("mllp ? : "+mllp);
-        System.out.println("log ? : "+log);
-        System.out.println("Begin Counter : "+autoCounter);
+        System.out.println("ack : "+ack);
+        System.out.println("mllp : "+mllp);
+        System.out.println("log : "+log);
+        System.out.println("Beginning Counter : "+autoCounter);
+        System.out.println("Destination files path : "+destinationPath);
         System.out.println("Socket prefix Name : "+socketName);
+        System.out.println("File extension : "+extensionName);
         System.out.println("..................................");
     }
 }
@@ -158,7 +189,7 @@ class ChannelX extends Thread{
     int bufferSizeIn,bufferSizeOut;
 
 /************************
- * Constructeur
+ * Constructeur du gestionnaire du channel
  * @param sockIn
  * @param autoCount
  * @param pathName
@@ -169,8 +200,10 @@ class ChannelX extends Thread{
  * @param log
  *************************/
     public ChannelX(Socket sockIn,long autoCount,String pathName,String sockName, String extensionName,boolean ack,boolean mllp, boolean log) {
-        //dimensionner les buffers
+        //dimensionner le buffer de lecture du message entrant
             bufferInput=new byte[1024*4096];
+            //affectation des variables locales à partir
+            //des valeurs transmises par la classe appelante
             this.sockIn=sockIn;
             autoCounter=autoCount;
             this.socketName=sockName;
@@ -179,20 +212,20 @@ class ChannelX extends Thread{
             this.ack=ack;
             this.mllp=mllp;
             this.log=log;
-
+            //exécuter la Thread (lancement de la méthode run)
             this.start();
     }
 
 
 
 /*************
- * THread run
+ * Thread run
  *************/
     @Override
     public void run(){
         try{
                 //gerer la connexion
-                if (log) System.out.println("Connection ON");
+                if (log) System.out.println("Connection ON "+sockIn.getInetAddress().getHostAddress()+" "+sockIn.getPort());
                 //recuperer les flux IO
                 binstr=new DataInputStream(sockIn.getInputStream());
                 boutstr=new DataOutputStream(sockIn.getOutputStream());
