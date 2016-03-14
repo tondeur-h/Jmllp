@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 tondeur-h
+ * Copyright (C) 2016 Tondeur-Hervé
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.Calendar;
 import java.util.Properties;
 import java.util.Scanner;
 import java.util.logging.Level;
@@ -33,7 +34,7 @@ import java.util.logging.Logger;
 
 /********************
  * Classe principale Jmllp
- * @author tondeur-h
+ * @author Tondeur-hervé
  ********************/
 public class Jmllp {
 
@@ -55,6 +56,8 @@ public class Jmllp {
     /*********************************
      * Constructeur
      * Boucle sur les connexions socket
+     * creer un objet ChannelX pour
+     * chaque socket entrante
      *********************************/
     public Jmllp() {
         try {
@@ -95,10 +98,21 @@ public class Jmllp {
     }
 
 
-
-    /********************************
+    /****************************************
      * lire le fichier des propriétés
-     ********************************/
+     * le fichier properties doit se trouver
+     * dans le dossier de travail de l'appli
+     * et doit se nommer jmllp.properties
+     * les paramétres de ce fichiers sont
+     * port = numero de port de la socket serveur
+     * socketName = nom de la socket et prefix du nom des fichiers de sorties
+     * destinationPath = chemin de destination des fichiers (local ou URI)
+     * extensionName = nom de l'extension des fichiers destination
+     * autoCounter = numero de debut de numerotation des fichiers destination
+     * ack = boolean autorisant le retour d'un ACK vers l'émetteur
+     * mllp = boolean autirisant l'encapsulation des messages entrant en mllpV1
+     * log = boolean autorisant l'affichage des traces.
+     ****************************************/
     private void lire_properties() {
         //récuperer le dossier de travail de l'application
       String pathApplication=System.getProperty("user.dir");
@@ -136,6 +150,7 @@ public class Jmllp {
 
 /*****************************************
  * Affichage des informations du connecteur
+ * Numero de version / Copyright / Licence
  ******************************************/
     private void show_running() {
         System.out.println("Jmllp version 1.0");
@@ -164,14 +179,16 @@ public class Jmllp {
         System.out.println("File extension : "+extensionName);
         System.out.println("..................................");
     }
-}
+} //fin de la Class Jmllp
 
+//==========================================================================================
 
-
-/********************
- *
- * @author tondeur-h
- ********************/
+/*************************
+ * Classe ChannelX (decode un message socket vers fichier disque)
+ * @author Tondeur-Hervé
+ * @version Copyright 2016
+ * @see Licence GPL V3
+ *************************/
 class ChannelX extends Thread{
 
     DataInputStream binstr;
@@ -188,7 +205,8 @@ class ChannelX extends Thread{
     boolean log;
     int bufferSizeIn,bufferSizeOut;
 
-/************************
+
+/*****************************************
  * Constructeur du gestionnaire du channel
  * @param sockIn
  * @param autoCount
@@ -198,14 +216,14 @@ class ChannelX extends Thread{
  * @param ack
  * @param mllp
  * @param log
- *************************/
+ ******************************************/
     public ChannelX(Socket sockIn,long autoCount,String pathName,String sockName, String extensionName,boolean ack,boolean mllp, boolean log) {
         //dimensionner le buffer de lecture du message entrant
             bufferInput=new byte[1024*4096];
             //affectation des variables locales à partir
             //des valeurs transmises par la classe appelante
             this.sockIn=sockIn;
-            autoCounter=autoCount;
+            this.autoCounter=autoCount;
             this.socketName=sockName;
             this.pathName=pathName;
             this.extensionName=extensionName;
@@ -218,35 +236,39 @@ class ChannelX extends Thread{
 
 
 
-/*************
- * Thread run
- *************/
+/***********************
+ * méthode run du Thread
+ * Surcharge de la méthode
+ ***********************/
     @Override
     public void run(){
         try{
                 //gerer la connexion
                 if (log) System.out.println("Connection ON "+sockIn.getInetAddress().getHostAddress()+" "+sockIn.getPort());
-                //recuperer les flux IO
+                //recuperer les flux IO de la socket en cours
                 binstr=new DataInputStream(sockIn.getInputStream());
                 boutstr=new DataOutputStream(sockIn.getOutputStream());
 
+                //calculer le nombre d'octets dans le messages
                 bufferSizeIn=binstr.available();
-                //lire les données en entrée
+                //lire les données en entrée s'il y en à
                 if (binstr.available()>0){
                     //lire et traiter le buffer d'entrée
                     binstr.read(bufferInput);
+                    //du log...
                    if (log) System.out.println("Read "+bufferSizeIn+" bytes");
-
+                   //lancer le traitement d'écriture sur disque du message socket
                     bufferOutput=traiter_buffer_in(bufferInput,bufferSizeIn);
                 }
 
-                //renvoyer un ACK vers le port de sortie.
+                //renvoyer l'ACK vers le port de sortie si option demandée.
                 if (ack) {boutstr.write(mllp_encapsulate(bufferOutput,bufferSizeOut),0,bufferSizeOut);}
 
+                //fermer les flux IO
                 binstr.close();
                 boutstr.close();
 
-                    //fermer la socket
+                //fermer la socket
                 sockIn.close();
 
         }catch(IOException ioe){
@@ -255,49 +277,66 @@ class ChannelX extends Thread{
         }
 
 
-
     /**************************************************************
-     * Traiter les données du buffer pour les écrire sur le disque
+     * Traiter les données du buffer pour les écrires sur le disque
      * et préparer l'ACK de retour
      * @param bufferInput
      * @return
      **************************************************************/
     private byte[] traiter_buffer_in(byte[] bufferIn,int bufSizeIn) {
+        //objet d'écriture sur disque
         PrintWriter pwDisk=null;
         try {
-            //msgAckResponse
+            //msgAckResponse variable qui va contenir le msh-10.1 a inserer dans le champ MSA-3.1 de l'ACK
             String msgAckResponse;
 
-            //write on disk
+            //Construire le chemin destination du fichier sur le disque
             String fileName=pathName+"/"+socketName+autoCounter+"."+extensionName;
+            //du log...
             if (log) System.out.println("Write fileName : "+fileName);
+            //instance de l'objet ecriture sur disque
             pwDisk = new PrintWriter(fileName);
+
+            //convertir le contenu du buffer provenant de la socket
+            //en une chaine de caractéres
             String BufInValue;
             if (mllp==true) {
             if (log) System.out.println("mllp decode");
+            //de-encapsule le mllp si option prévu et converti en chaine de caractéres
             BufInValue=new String(mllp_UnEncapsulate(bufferIn,bufSizeIn),0,bufSizeIn-3);
             if (log) System.out.println("Write "+(bufSizeIn-3)+" bytes");
             }
             else
             {
+                // convertir le buffer en chaine de caractéres (option : sans mllp)
                 BufInValue=new String(bufferIn,0,bufSizeIn);
                if (log) System.out.println("Write "+bufSizeIn+" bytes");
             }
+            //extraire le champ MSH-10.1 du message d'origine
             msgAckResponse=extract_msgAckResponse(BufInValue);
-            System.out.println(msgAckResponse);
 
+            if (log) System.out.println("Message control Id : "+msgAckResponse);
+
+            //ecrire le message contenu dans le buffer sur disque
             pwDisk.print(BufInValue);
             pwDisk.close();
-            autoCounter++;
-            //return ACK
+
+            //autoCounter++;
+            //Construire le buffer de sortie de l'ACK
             bufferOutput=new byte[1024*4096];
-            //TODO : construire ACK
-            String strAck="MSH|^~\\&|JMLLP|CHV|"+socketName+"|CHV|20160313152819||ACK^O01|"+socketName+autoCounter+"|P|2.3\rMSA|AA|"+msgAckResponse;
+            //construire l'ACK et calculer sa taille
+            Calendar c=Calendar.getInstance();
+            //definir la date de maintenant...
+            String dateMSG=""+c.get(Calendar.YEAR)+padZero((c.get(Calendar.MONTH)+1))+padZero(c.get(Calendar.DAY_OF_MONTH))+padZero(c.get(Calendar.HOUR_OF_DAY))+padZero(c.get(Calendar.MINUTE))+padZero(c.get(Calendar.SECOND));
+            //construire le message ACK
+            String strAck="MSH|^~\\&|JMLLP|CHV|"+socketName+"|CHV|"+dateMSG+"||ACK^O01|"+socketName+autoCounter+"|P|2.3\rMSA|AA|"+msgAckResponse;
             bufferSizeOut=strAck.length();
 
+            //du log...
             if (log) System.out.println(strAck);
             if (log) System.out.println("ack response lenght "+bufferSizeOut+" bytes");
 
+            //encapsuler dans le format mllp le message ACK et le placer dans un buffer de bytes
             bufferOutput=mllp_encapsulate(strAck.getBytes(),bufferSizeOut);
 
         } catch (FileNotFoundException ex) {
@@ -305,13 +344,14 @@ class ChannelX extends Thread{
         } finally {
             pwDisk.close();
         }
+        //retourner le buffer contenant l'ACK
         return bufferOutput;
     }
 
 
-
     /***************************************************************
-     * Ajouter les byte d'encapsulation mllp au données du buffer...
+     * Ajouter les bytes d'encapsulation mllp aux données du buffer...
+     * MLLP ?
      * The header is a vertical tab character <VT> its hex value is 0x0b.
      * The trailer is a file separator character <FS> (hex 0x1c) immediately
      * followed by a carriage return <CR> (hex 0x0d)
@@ -319,49 +359,81 @@ class ChannelX extends Thread{
      * @return
      ***************************************************************/
     private byte[] mllp_encapsulate(byte[] bufferLocIn,int sizebufLocIn) {
-        //TODO :mllp encapsulate a tester
+        //creer un buffer temporaire augmenté de 3 octets
+        //pour inserer l'octet du header et les 2 octets du trailer
         byte[] out=new byte[sizebufLocIn+3];
         int idx;
+        //inserer octet du header
         out[0]=0x0b;
+        //recopier le buffer source dans le buffer destination
+        //a la position 1 du tempon destination
         for (idx=1;idx<sizebufLocIn;idx++){
             out[idx]=bufferLocIn[idx];
         }
+        //inserer les 2 octets du trailer en fin de buffer temporaire
         out[idx]=0x1c;
         out[idx+1]=0x0d;
+        //ajuster la taille du nouveau tampon de sortie.
         bufferSizeOut=sizebufLocIn+3;
+        //retourner le buffer temporaire
         return out;
     }
 
 
-
     /***************************************************************
-     * Retirer les byte d'encapsulation mllp au données du buffer...
+     * Retirer les bytes d'encapsulation mllp aux données du buffer...
      * @param bufferOutput
      * @return
      ***************************************************************/
     private byte[] mllp_UnEncapsulate(byte[] bufferLocIn,int sizebufLocIn) {
+        //creer un buffer temporaire de sizebufLocIn - 3 octets (mllp)
         byte[] out=new byte[sizebufLocIn-3];
         int idx=0;
+        //recopier le buffer source dans le buffer temporaire
+        //en retirant le premier octet et les 2 derniers octets
         for (idx=0;idx<sizebufLocIn-3;idx++){
             out[idx]=bufferLocIn[idx+1];
         }
+        //ajuster la nouvelle taille du buffer
         bufferSizeIn=sizebufLocIn-3;
+        //retourner le buffer temporaire
         return out;
     }
 
 
     /******************************************
-     * Extraire le MSH-10.1 message control Id
+     * Extraire le champ MSH-10.1 (message control Id)
+     * Il doit être transmis en retour au message
+     * de reponse ACK dans le segment MSA-3
      * @param BufInValue
      * @return
      ******************************************/
     private String extract_msgAckResponse(String BufInValue) {
+        //parser le segment MSH sur le signe pipe '|'
         Scanner sc=new Scanner(BufInValue);
         sc.useDelimiter("\\|");
+        //Lire les 9 premiers champs
         sc.next();sc.next();sc.next();
         sc.next();sc.next();sc.next();
         sc.next();sc.next();sc.next();
+        //retourner le champ numero 10
         return sc.next();
     }
 
-}
+
+    /****************************
+     * bourrer les valeurs
+     * sur 2 digits avec un zéro
+     * @param valIn
+     * @return
+     ****************************/
+    private String padZero(int valIn){
+        String out;
+        out=String.valueOf(valIn);
+        if (out.length()<2){
+            out="0"+out;
+        }
+        return out;
+    }
+
+} //fin class ChannelX
